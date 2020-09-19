@@ -1,4 +1,4 @@
-package Impl;
+package impl;
 
 import java.util.*;
 
@@ -9,7 +9,6 @@ import java.util.*;
  *
  * @param <K> The key type of the map
  * @param <V> The value type of the map
- *
  * @author Ameer Qaqish
  */
 public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
@@ -33,8 +32,8 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
     }
 
     private static class Node<K, V> implements Entry<K, V> {
-        int hash;
-        K key;
+        final int hash;
+        final K key;
         V value;
 
         Node(int hash, K key, V value) {
@@ -58,6 +57,29 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
             V oldValue = this.value;
             this.value = value;
             return oldValue;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + key + ", " + value + ")";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            }
+            if (o instanceof Map.Entry) {
+                Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
+                return Objects.equals(key, e.getKey()) &&
+                        Objects.equals(value, e.getValue());
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(key) ^ Objects.hashCode(value);
         }
     }
 
@@ -221,6 +243,7 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
     /**
      * Returns an iterator over the map's entries.
      * Removal is supported.
+     *
      * @return an iterator over the map's entries
      */
     @Override
@@ -277,6 +300,61 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
             canRemove = false;
             size--;
         }
+    }
+
+    public String toString() {
+        StringBuilder s = new StringBuilder("{");
+        boolean first = true;
+        for (Entry<K, V> node : this) {
+            if (!first) {
+                s.append(", ");
+            }
+            first = false;
+            s.append(node.toString());
+        }
+        s.append("}");
+        return s.toString();
+    }
+
+    // Copied from Java.util.AbstractMap
+    @Override
+    public boolean equals(Object o) {
+        if (o == this)
+            return true;
+
+        if (!(o instanceof Map))
+            return false;
+        Map<?, ?> m = (Map<?, ?>) o;
+        if (m.size() != size())
+            return false;
+
+        try {
+            for (Entry<K, V> e : this) {
+                K key = e.getKey();
+                V value = e.getValue();
+                if (value == null) {
+                    if (!(m.get(key) == null && m.containsKey(key)))
+                        return false;
+                } else {
+                    if (!value.equals(m.get(key)))
+                        return false;
+                }
+            }
+        } catch (ClassCastException | NullPointerException unused) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // Copied from Java.util.AbstractMap
+    @Override
+    public int hashCode() {
+        int h = 0;
+        for (Entry<K, V> entry : this) {
+            h += entry.hashCode();
+        }
+        return h;
     }
 
     // Unsupported operations.
