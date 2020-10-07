@@ -3,43 +3,27 @@ package impl;
 import java.util.*;
 
 /**
- * This is a hashmap implemented as an array of linked lists of key value pairs.
- * For simplicity reasons, it does not support the methods keySet(), valueSet(), entrySet().
- * Instead it has an iterator() method to allow iteration over the entries of the map.
+ * A HashMap resolving collisions with chaining.
+ * Iteration through the map's entries can be done using the iterator of the map.
  *
- * @param <K> The key type of the map
- * @param <V> The value type of the map
+ * @param <K>
+ * @param <V>
+ *
  * @author Ameer Qaqish
  */
-public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
-    private static final int DEFAULT_INITIAL_CAPACITY = 1 << 4;
+public class MyHashMap<K, V> implements MyMap<K, V>, Iterable<Map.Entry<K, V>> {
     private static final double DEFAULT_LOAD_FACTOR = 0.75;
+    private static final int DEFAULT_INITIAL_CAPACITY = 17;
 
-    /**
-     * Since the capacity is a power of 2, higher order bits are neglected when hashing.
-     * To fix this the key's hashCode is xor-ed with its upper half.
-     */
-    private static int hash(Object key) {
-        if (key == null) {
-            return 0;
-        }
-        int h = key.hashCode();
-        return h ^ (h >>> 16);
-    }
-
-    private static int smallestPow2Geq(int n) {
-        return 1 << (32 - Integer.numberOfLeadingZeros(n - 1));
-    }
-
-    private static class Node<K, V> implements Entry<K, V> {
-        final int hash;
-        final K key;
+    private static class Node<K, V> implements Map.Entry<K, V> {
+        K key;
         V value;
+        Node<K, V> next;
 
-        Node(int hash, K key, V value) {
-            this.hash = hash;
+        Node(K key, V value, Node<K, V> next) {
             this.key = key;
             this.value = value;
+            this.next = next;
         }
 
         @Override
@@ -59,78 +43,98 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
             return oldValue;
         }
 
-        @Override
-        public String toString() {
-            return "(" + key + ", " + value + ")";
+        public int hashCode() {
+            return Objects.hashCode(key) ^ Objects.hashCode(value);
         }
 
-        @Override
         public boolean equals(Object o) {
-            if (o == this) {
+            if (o == this)
                 return true;
-            }
             if (o instanceof Map.Entry) {
                 Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
-                return Objects.equals(key, e.getKey()) &&
-                        Objects.equals(value, e.getValue());
+                return Objects.equals(key, e.getKey()) && Objects.equals(value, e.getValue());
             }
             return false;
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hashCode(key) ^ Objects.hashCode(value);
+        public String toString() {
+            return "(" + key + ", " + value + ")";
         }
     }
 
-    /* ---------- Fields ---------- */
+    private static int nextPrime(int n) {
+        if (n % 2 == 0) {
+            n++;
+        }
+        while (!isPrime(n)) {
+            n += 2;
+        }
+        return n;
+    }
 
-    /**
-     * The hashtable storing the buckets of nodes.
-     * The invariant is that the table's length is always a power of 2.
-     * This allows for faster mod calculations using &.
-     */
-    private List<Node<K, V>>[] table;
+    private static boolean isPrime(int n) {
+        if (n <= 1) {
+            return false;
+        }
+        if (n == 2) {
+            return true;
+        }
+        if (n % 2 == 0) {
+            return false;
+        }
+        for (int i = 3; i * i <= n; i += 2) {
+            if (n % i == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
 
-    /**
-     * The number of nodes in the map.
-     */
+    private Node<K, V>[] table; // table.length is always prime.
     private int size;
+    private final double loadFactor;
+
+    private int hash(Object key) {
+        int h = key.hashCode() % table.length;
+        return (h < 0) ? h + table.length : h;
+    }
 
     /**
-     * The value of size for which the table needs to be doubled in length.
-     * When size becomes greater than threshold, the table's length is doubled.
-     */
-    private int threshold;
-
-    /* ---------- Methods ---------- */
-
-    /**
-     * Constructs a HashMap with the given initial capacity and load factor.
+     * Constructs an empty {@code MyHashMap} with the specified initial
+     * capacity and load factor.
      *
      * @param initialCapacity the initial capacity
      * @param loadFactor      the load factor
+     * @throws IllegalArgumentException if the initial capacity is negative
+     *                                  or the load factor is nonpositive
      */
     public MyHashMap(int initialCapacity, double loadFactor) {
-        table = new List[smallestPow2Geq(initialCapacity)];
-        for (int i = 0; i < table.length; i++) {
-            table[i] = new LinkedList<>();
+        if (initialCapacity < 0) {
+            throw new IllegalArgumentException("Illegal initial capacity: " + initialCapacity);
         }
+        if (loadFactor <= 0 || Double.isNaN(loadFactor)) {
+            throw new IllegalArgumentException("Illegal load factor: " + loadFactor);
+        }
+        this.loadFactor = loadFactor;
+        table = new Node[nextPrime(initialCapacity)];
         size = 0;
-        threshold = (int) (table.length * loadFactor);
     }
 
     /**
-     * Constructs a HashMap with the given initial capacity and a load factor of 0.75.
+     * Constructs an empty {@code MyHashMap} with the specified initial
+     * capacity and the default load factor (0.75).
      *
-     * @param initialCapacity the initial capacity
+     * @param initialCapacity the initial capacity.
+     * @throws IllegalArgumentException if the initial capacity is negative.
      */
     public MyHashMap(int initialCapacity) {
         this(initialCapacity, DEFAULT_LOAD_FACTOR);
     }
 
     /**
-     * Constructs a HashMap with an initial capacity of 16 and a load factor of 0.75.
+     * Constructs an empty {@code MyHashMap} with the default initial capacity
+     * (17) and the default load factor (0.75).
      */
     public MyHashMap() {
         this(DEFAULT_INITIAL_CAPACITY, DEFAULT_LOAD_FACTOR);
@@ -148,23 +152,20 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
 
     @Override
     public boolean containsKey(Object key) {
-        return findNode(hash(key), key) != null;
-    }
-
-    private Node<K, V> findNode(int h, Object key) {
-        for (Node<K, V> node : table[h & (table.length - 1)]) {
-            if (Objects.equals(node.key, key)) {
-                return node;
+        int h = hash(key);
+        for (Node<K, V> cur = table[h]; cur != null; cur = cur.next) {
+            if (key.equals(cur.key)) {
+                return true;
             }
         }
-        return null;
+        return false;
     }
 
     @Override
     public boolean containsValue(Object value) {
-        for (List<Node<K, V>> list : table) {
-            for (Node<K, V> node : list) {
-                if (Objects.equals(node.value, value)) {
+        for (Node<K, V> node : table) {
+            for (Node<K, V> cur = node; cur != null; cur = cur.next) {
+                if (Objects.equals(value, cur.value)) {
                     return true;
                 }
             }
@@ -174,50 +175,57 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
 
     @Override
     public V get(Object key) {
-        Node<K, V> target = findNode(hash(key), key);
-        return (target == null) ? null : target.value;
+        int h = hash(key);
+        for (Node<K, V> cur = table[h]; cur != null; cur = cur.next) {
+            if (key.equals(cur.key)) {
+                return cur.value;
+            }
+        }
+        return null;
     }
 
     @Override
     public V put(K key, V value) {
         int h = hash(key);
-        Node<K, V> target = findNode(h, key);
-        if (target == null) {
-            table[h & (table.length - 1)].add(new Node<>(h, key, value));
-            size++;
-            if (size > threshold) {
-                resize();
+        for (Node<K, V> cur = table[h]; cur != null; cur = cur.next) {
+            if (key.equals(cur.key)) {
+                V oldValue = cur.value;
+                cur.value = value;
+                return oldValue;
             }
-            return null;
-        } else {
-            V oldValue = target.value;
-            target.value = value;
-            return oldValue;
         }
+        table[h] = new Node<>(key, value, table[h]);
+        size++;
+        if (size >= table.length * loadFactor) {
+            resize();
+        }
+        return null;
     }
 
     private void resize() {
-        int newCap = 2 * table.length;
-        threshold *= 2;
-        List<Node<K, V>>[] newTable = new List[newCap];
-        for (int i = 0; i < newCap; i++) {
-            newTable[i] = new LinkedList<>();
-        }
-        for (List<Node<K, V>> list : table) {
-            for (Node<K, V> node : list) {
-                newTable[node.hash & (newCap - 1)].add(node);
+        Node<K, V>[] oldTable = table;
+        int newCap = nextPrime(2 * table.length);
+        table = new Node[newCap];
+        for (Node<K, V> node : oldTable) {
+            for (Node<K, V> cur = node, next; cur != null; cur = next) {
+                next = cur.next;
+                int h = hash(cur.key);
+                cur.next = table[h];
+                table[h] = cur;
             }
         }
-        table = newTable;
     }
 
     @Override
     public V remove(Object key) {
         int h = hash(key);
-        for (Iterator<Node<K, V>> it = table[h & (table.length - 1)].iterator(); it.hasNext(); ) {
-            Node<K, V> cur = it.next();
-            if (Objects.equals(cur.key, key)) {
-                it.remove();
+        for (Node<K, V> cur = table[h], prev = null; cur != null; prev = cur, cur = cur.next) {
+            if (key.equals(cur.key)) {
+                if (prev == null) {
+                    table[h] = cur.next;
+                } else {
+                    prev.next = cur.next;
+                }
                 size--;
                 return cur.value;
             }
@@ -227,117 +235,103 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
 
     @Override
     public void putAll(Map<? extends K, ? extends V> m) {
-        for (Entry<? extends K, ? extends V> node : m.entrySet()) {
-            put(node.getKey(), node.getValue());
+        for (Map.Entry<? extends K, ? extends V> entry : m.entrySet()) {
+            this.put(entry.getKey(), entry.getValue());
         }
-    }
-
-    @Override
-    public void clear() {
-        for (List<Node<K, V>> list : table) {
-            list.clear();
-        }
-        size = 0;
     }
 
     /**
-     * Returns an iterator over the map's entries.
-     * Removal is supported.
-     *
-     * @return an iterator over the map's entries
+     * Removes all of the mappings from this map.
+     * The map will be empty after this call returns.
      */
     @Override
-    public Iterator<Entry<K, V>> iterator() {
+    public void clear() {
+        Arrays.fill(table, null);
+        size = 0;
+    }
+
+    @Override
+    public Iterator<Map.Entry<K, V>> iterator() {
         return new MyHashMapIterator();
     }
 
-    private class MyHashMapIterator implements Iterator<Entry<K, V>> {
+    private class MyHashMapIterator implements Iterator<Map.Entry<K, V>> {
         int i;
-        Iterator<Node<K, V>> it;
-        boolean canRemove;
+        Node<K, V> next;
+        Node<K, V> lastRet;
 
         MyHashMapIterator() {
+            lastRet = null;
             i = 0;
-            it = table[i].iterator();
-            canRemove = false;
+            while (i < table.length && table[i] == null) {
+                i++;
+            }
+            next = (i < table.length) ? table[i] : null;
         }
 
         @Override
         public boolean hasNext() {
-            // Check current bucket.
-            if (it.hasNext()) {
-                return true;
-            }
-
-            // Find first non-emtpy bucket if it exists.
-            i++;
-            while (i < table.length && table[i].isEmpty()) {
-                i++;
-            }
-            if (i >= table.length) {
-                return false;
-            } else {
-                it = table[i].iterator();
-                return true;
-            }
+            return next != null;
         }
 
         @Override
-        public Entry<K, V> next() {
-            if (!hasNext()) {
+        public Map.Entry<K, V> next() {
+            if (next == null) {
                 throw new NoSuchElementException();
             }
-            canRemove = true;
-            return it.next();
+            lastRet = next;
+            next = next.next;
+            if (next == null) {
+                i++;
+                while (i < table.length && table[i] == null) {
+                    i++;
+                }
+                if (i < table.length) {
+                    next = table[i];
+                }
+            }
+            return lastRet;
         }
 
         @Override
         public void remove() {
-            if (!canRemove) {
+            if (lastRet == null) {
                 throw new IllegalStateException();
             }
-            it.remove();
-            canRemove = false;
-            size--;
+            MyHashMap.this.remove(lastRet.key);
+            lastRet = null;
         }
     }
 
-    public String toString() {
-        StringBuilder s = new StringBuilder("{");
-        boolean first = true;
-        for (Entry<K, V> node : this) {
-            if (!first) {
-                s.append(", ");
-            }
-            first = false;
-            s.append(node.toString());
+    @Override
+    public int hashCode() {
+        int h = 0;
+        for (Map.Entry<K, V> entry : this) {
+            h += entry.hashCode();
         }
-        s.append("}");
-        return s.toString();
+        return h;
     }
 
-    // Copied from Java.util.AbstractMap
     @Override
     public boolean equals(Object o) {
-        if (o == this)
+        if (o == this) {
             return true;
+        }
 
-        if (!(o instanceof Map))
+        if (!(o instanceof MyMap)) {
             return false;
-        Map<?, ?> m = (Map<?, ?>) o;
-        if (m.size() != size())
+        }
+        MyMap<?, ?> m = (MyMap<?, ?>) o;
+        if (m.size() != size()) {
             return false;
+        }
 
         try {
-            for (Entry<K, V> e : this) {
+            for (Map.Entry<K, V> e : this) {
                 K key = e.getKey();
                 V value = e.getValue();
-                if (value == null) {
-                    if (!(m.get(key) == null && m.containsKey(key)))
-                        return false;
-                } else {
-                    if (!value.equals(m.get(key)))
-                        return false;
+                if (!m.containsKey(key) || !Objects.equals(m.get(key), value)) {
+                    return false;
                 }
             }
         } catch (ClassCastException | NullPointerException unused) {
@@ -347,31 +341,18 @@ public class MyHashMap<K, V> implements Map<K, V>, Iterable<Map.Entry<K, V>> {
         return true;
     }
 
-    // Copied from Java.util.AbstractMap
     @Override
-    public int hashCode() {
-        int h = 0;
-        for (Entry<K, V> entry : this) {
-            h += entry.hashCode();
+    public String toString() {
+        StringBuilder s = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<K, V> e : this) {
+            if (!first) {
+                s.append(", ");
+            }
+            first = false;
+            s.append(e.toString());
         }
-        return h;
-    }
-
-    // Unsupported operations.
-    // The iterator provides their functionality.
-
-    @Override
-    public Set<K> keySet() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Collection<V> values() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Set<Entry<K, V>> entrySet() {
-        throw new UnsupportedOperationException();
+        s.append("}");
+        return s.toString();
     }
 }
